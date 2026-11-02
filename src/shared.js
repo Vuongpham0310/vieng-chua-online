@@ -16,6 +16,9 @@ export function matPos(i) {
   return { x: (c - 3.5) * 6.0, z: -17 + r * 6.8 };
 }
 
+// Thảm giữa chùa: Thích Yến Nhi luôn ngồi đây, không ai khác ngồi được
+export const FIXED_MAT = 20;
+
 // 13 NPC ngồi thiền trên các thảm cố định (khoảng 2/3 trong 20 NPC)
 export const NPC_MATS = [1, 4, 6, 9, 11, 16, 19, 21, 26, 29, 33, 35, 38];
 

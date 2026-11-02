@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { MAT_COUNT, activeNpcs } from "../../src/shared.js";
+import { MAT_COUNT, FIXED_MAT, activeNpcs } from "../../src/shared.js";
 
 const TTL = 15000;
 
@@ -35,7 +35,7 @@ export default async (req) => {
         const taken = Object.entries(players).some(
           ([pid, p]) => pid !== id && p.mat === mat && p.state !== "standing"
         );
-        if (mat === null || mat < 0 || mat >= MAT_COUNT || npc.includes(mat) || taken) {
+        if (mat === null || mat < 0 || mat >= MAT_COUNT || mat === FIXED_MAT || npc.includes(mat) || taken) {
           rejected = true;
           state = "standing";
           mat = null;

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createMonk, pickRobe, ROBE_BROWN, ROBE_BLUE } from "./three/monk.js";
 import { shadowify } from "./three/util3d.js";
 import { initAudio, startChant, stopChant } from "./audio.js";
-import { MAT_COUNT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
+import { MAT_COUNT, FIXED_MAT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
 import { store } from "./store.js";
 
 const IDLE_MS = 5 * 60 * 1000; // ẩn tab quá 5 phút thì ngừng gửi
@@ -52,6 +52,13 @@ export function createController(scene) {
   moBox.castShadow = true;
   scene.add(moBox);
 
+  // NPC cố định có tên: không bao giờ bị bớt đi dù có bao nhiêu người chơi
+  const yenNhi = createMonk({ name: "Thích Yến Nhi", robe: pickRobe("yennhi") });
+  yenNhi.group.position.set(matPos(FIXED_MAT).x, 0, matPos(FIXED_MAT).z);
+  yenNhi.setState("sitting");
+  scene.add(yenNhi.group);
+  shadowify(yenNhi.group);
+
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.4, 48), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.07;
@@ -95,7 +102,7 @@ export function createController(scene) {
     syncNpcs();
     syncStanding(r.count ?? 1);
     applyOthers(r.players || []);
-    store.set({ players: [me.name + " (bạn)", ...[...others.values()].map((o) => o.name)], npcCount: npcList.length + standers.size });
+    store.set({ players: [me.name + " (bạn)", ...[...others.values()].map((o) => o.name)], npcCount: npcList.length + standers.size + 1 });
   }
 
   function applyOthers(list) {
@@ -164,7 +171,7 @@ export function createController(scene) {
   }
 
   function occupied() {
-    const s = new Set(npcList);
+    const s = new Set([...npcList, FIXED_MAT]);
     for (const o of others.values()) if (o.state !== "standing" && o.state !== "spinning" && o.mat != null) s.add(o.mat);
     return s;
   }
@@ -317,6 +324,7 @@ export function createController(scene) {
 
   function frame(dt, camera) {
     master.update(dt, false);
+    yenNhi.update(dt, false);
     for (const m of npcs.values()) m.update(dt, false);
     for (const m of standers.values()) m.update(dt, false);
 
