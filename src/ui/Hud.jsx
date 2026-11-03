@@ -46,7 +46,7 @@ function Popup() {
       <aside className="card popup levels" aria-label="Cấp độ">
         {closeBtn}
         <h3>Cấp độ công đức</h3>
-        <p className="rules">Lễ Phật +1 · Đủ một vòng 108 hạt +10</p>
+        <p className="rules">Lễ Phật +1 · Ngồi thiền 5 phút +1 · Đủ vòng 108 hạt +10</p>
         <ol>
           {LEVELS.map((l, i) => (
             <li key={l.name} className={i === level ? "now" : i < level ? "done" : ""}>

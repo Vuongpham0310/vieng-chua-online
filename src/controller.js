@@ -3,7 +3,7 @@ import { createMonk, pickRobe, ROBE_BROWN, ROBE_BLUE } from "./three/monk.js";
 import { shadowify } from "./three/util3d.js";
 import { buildSeat } from "./three/seat.js";
 import { initAudio, startChant, stopChant } from "./audio.js";
-import { LEVELS, MERIT_BOW, levelOf, MAT_COUNT, FIXED_MAT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
+import { LEVELS, MERIT_BOW, MERIT_SIT, MERIT_SIT_MS, levelOf, MAT_COUNT, FIXED_MAT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
 import { store } from "./store.js";
 
 const IDLE_MS = 5 * 60 * 1000; // ẩn tab quá 5 phút thì ngừng gửi
@@ -35,6 +35,7 @@ export function createController(scene) {
   const npcs = new Map();
   const standers = new Map();
   let pushTimer = 0;
+  let sitTimer = 0;
   let idleTimer = 0;
   let toastTimer = 0;
   let nearMat = -1;
@@ -244,10 +245,12 @@ export function createController(scene) {
     me.z = p.z;
     setMode("sitting");
     store.set({ sitStart: Date.now() });
+    sitTimer = setInterval(() => addMerit(MERIT_SIT), MERIT_SIT_MS);
     push();
   }
 
   function standUp(announce = true) {
+    clearInterval(sitTimer);
     me.mat = null;
     me.z = Math.min(me.z + 1.2, ROOM.zMax);
     setMode("standing");
@@ -332,6 +335,7 @@ export function createController(scene) {
     if (idle || !inGame) return;
     idle = true;
     clearInterval(pushTimer);
+    clearInterval(sitTimer);
     navigator.sendBeacon("/api/presence", new Blob([JSON.stringify({ id, leave: true })], { type: "application/json" }));
     stopChant();
     keys.clear();
@@ -491,6 +495,7 @@ export function createController(scene) {
     removeEventListener("pagehide", onLeave);
     document.removeEventListener("visibilitychange", onVisibility);
     clearInterval(pushTimer);
+    clearInterval(sitTimer);
     clearTimeout(idleTimer);
     clearTimeout(bowTimer);
     clearTimeout(toastTimer);

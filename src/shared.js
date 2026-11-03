@@ -50,6 +50,8 @@ export const isTouch = typeof matchMedia !== "undefined" && matchMedia("(pointer
 // Công đức: Lễ Phật +1, đủ một vòng tràng hạt (108 hạt) +10.
 export const MERIT_BOW = 1;
 export const MERIT_BEADS_ROUND = 10;
+export const MERIT_SIT = 1; // mỗi 5 phút ngồi thiền liên tục
+export const MERIT_SIT_MS = 5 * 60 * 1000;
 
 // Cấp độ theo công đức. Mỗi cấp được ban áo khoác ngoài và chỗ ngồi riêng, bắt buộc dùng từ đó.
 export const LEVELS = [
