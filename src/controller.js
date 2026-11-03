@@ -75,10 +75,10 @@ export function createController(scene) {
   scene.add(moBox);
 
   // NPC cố định có tên: không bao giờ bị bớt đi dù có bao nhiêu người chơi
-  const yenNhi = createMonk({ name: "Thích Yến Nhi", robe: pickRobe("yennhi"), level: 4 });
+  const yenNhi = createMonk({ name: "Thích Yến Nhi", robe: pickRobe("yennhi"), level: 1 });
   yenNhi.group.position.set(matPos(FIXED_MAT).x, 0, matPos(FIXED_MAT).z);
   yenNhi.setState("sitting");
-  yenNhi.group.position.y = setSeat("yn", FIXED_MAT, 4);
+  yenNhi.group.position.y = setSeat("yn", FIXED_MAT, 1);
   scene.add(yenNhi.group);
   shadowify(yenNhi.group);
 
