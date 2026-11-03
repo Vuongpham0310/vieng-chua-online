@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { store, useStore } from "../store.js";
 import { playMo, playBeadClick } from "../audio.js";
 import { Back } from "./Icons.jsx";
+import { isTouch, MERIT_BEADS_ROUND } from "../shared.js";
 
 const BEADS = 108;
 
@@ -32,7 +33,7 @@ function Shell({ title, children, labelId }) {
     return () => removeEventListener("keydown", onKey);
   }, []);
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && close()}>
       <section className="card panel" role="dialog" aria-modal="true" aria-labelledby={labelId}>
         <button ref={ref} className="back" onClick={close}>
           <Back /> Trở lại
@@ -76,7 +77,7 @@ function MoPanel() {
 
   return (
     <Shell title="Gõ mõ" labelId="moTitle">
-      <div className="mo-stage" onMouseDown={(e) => (strike(), e.preventDefault())} role="button" tabIndex={0} aria-label="Gõ mõ" onKeyDown={(e) => e.key === "Enter" && strike()}>
+      <div className="mo-stage" onPointerDown={(e) => (strike(), e.preventDefault())} role="button" tabIndex={0} aria-label="Gõ mõ" onKeyDown={(e) => e.key === "Enter" && strike()}>
         <svg className={"mo-svg" + (hit ? " hit" : "")} viewBox="0 0 220 200" width="270" height="245" aria-hidden="true">
           <defs>
             <radialGradient id="woodG" cx="40%" cy="35%" r="75%">
@@ -102,7 +103,7 @@ function MoPanel() {
       <p className="count" aria-live="polite">
         Số lần gõ: <b>{count}</b>
       </p>
-      <small>Bấm chuột vào mõ hoặc nhấn Space để gõ · Esc để trở lại</small>
+      <small>{isTouch ? "Chạm vào mõ để gõ" : "Bấm chuột vào mõ hoặc nhấn Space để gõ · Esc để trở lại"}</small>
     </Shell>
   );
 }
@@ -115,6 +116,7 @@ function BeadsPanel() {
     setTotal(t.current);
     save("vc_beads_total", t.current);
     playBeadClick();
+    if (t.current % BEADS === 0) store.actions.addMerit(MERIT_BEADS_ROUND);
   };
   useEffect(() => {
     const onKey = (e) => {
@@ -153,7 +155,7 @@ function BeadsPanel() {
       <button className="primary" onClick={advance}>
         Lần một hạt
       </button>
-      <small>Bấm nút, bấm vào tràng hạt hoặc nhấn Space · Esc để trở lại</small>
+      <small>{isTouch ? "Chạm nút hoặc tràng hạt để lần từng hạt" : "Bấm nút, bấm vào tràng hạt hoặc nhấn Space · Esc để trở lại"}</small>
     </Shell>
   );
 }

@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { LEVELS } from "../shared.js";
+import { canvasTex } from "./util3d.js";
 
 // Chỉ có hai màu áo, theo ảnh tham chiếu: nâu và xanh.
 export const ROBE_BROWN = 0x7a4a2e;
@@ -7,10 +9,10 @@ export const pickRobe = (seed) => ([...String(seed)].reduce((a, c) => a + c.char
 
 const SKIN = 0xf2c398;
 
-function labelSprite(text) {
+function labelSprite(text, rank) {
   const c = document.createElement("canvas");
   c.width = 320;
-  c.height = 72;
+  c.height = rank ? 104 : 72;
   const g = c.getContext("2d");
   g.font = "600 32px 'Be Vietnam Pro', 'Segoe UI', sans-serif";
   g.textAlign = "center";
@@ -25,10 +27,20 @@ function labelSprite(text) {
   g.stroke();
   g.fillStyle = "#fff3d6";
   g.fillText(text, 160, 36, 280);
+  if (rank) {
+    g.font = "600 24px 'Be Vietnam Pro', 'Segoe UI', sans-serif";
+    const rw = g.measureText(rank).width + 28;
+    g.fillStyle = "rgba(34,16,9,0.78)";
+    g.beginPath();
+    g.roundRect(160 - rw / 2, 68, rw, 32, 16);
+    g.fill();
+    g.fillStyle = "#f3d98c";
+    g.fillText(rank, 160, 85, 280);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  sp.scale.set(2.2, 0.5, 1);
+  sp.scale.set(2.2, rank ? 0.72 : 0.5, 1);
   sp.renderOrder = 10;
   return sp;
 }
@@ -41,10 +53,36 @@ const mesh = (geo, mat, x = 0, y = 0, z = 0) => {
 
 const P = (pts) => pts.map(([r, y]) => new THREE.Vector2(r, y));
 
+// Cà sa: các ô vải ghép (patchwork) ngăn bởi đường chỉ
+function patchTex(color, seam) {
+  return canvasTex(128, 128, (g, w, h) => {
+    const base = new THREE.Color(color);
+    for (let y = 0; y < 3; y++)
+      for (let x = 0; x < 2; x++) {
+        g.fillStyle = "#" + base.clone().multiplyScalar(0.9 + ((x + y) % 2) * 0.12).getHexString();
+        g.fillRect(x * 64, y * 43, 64, 43);
+      }
+    g.strokeStyle = seam;
+    g.lineWidth = 4;
+    for (let x = 0; x <= w; x += 64) g.strokeRect(x - 2, -2, 4, h + 4);
+    for (let y = 0; y <= h; y += 43) g.strokeRect(-2, y - 2, w + 4, 4);
+  }, [6, 3]);
+}
+const cloth2 = (color, seam, patch) => new THREE.MeshStandardMaterial(patch ? { map: patchTex(color, seam), roughness: 1, envMapIntensity: 0.15 } : { color, roughness: 1, envMapIntensity: 0.15 });
+const FULL = [[0.64, 0.34], [0.62, 0.42], [0.57, 0.7], [0.49, 0.95], [0.45, 1.15], [0.47, 1.3], [0.38, 1.42], [0.31, 1.455]];
+const OUTER = [
+  null,
+  { pts: [[0.55, 0.6], [0.52, 0.78], [0.49, 0.95], [0.45, 1.15], [0.47, 1.3], [0.38, 1.42], [0.31, 1.455]], mat: cloth2(0x8d8a84, "", false), trim: new THREE.MeshStandardMaterial({ color: 0x5a5854, roughness: 1 }) },
+  { pts: FULL, mat: cloth2(0x9b6a2e, "#5a3a14", true), trim: new THREE.MeshStandardMaterial({ color: 0x5a3a14, roughness: 1 }) },
+  { pts: FULL, mat: cloth2(0xd9a21b, "#8a5a08", true), trim: new THREE.MeshStandardMaterial({ color: 0xf3d98c, roughness: 0.6, metalness: 0.4 }) },
+  { pts: FULL, mat: cloth2(0x9b1c24, "#e0b050", true), trim: new THREE.MeshStandardMaterial({ color: 0xe8bf62, roughness: 0.5, metalness: 0.6 }) },
+  { pts: FULL, mat: cloth2(0xe6b422, "#b01820", true), trim: new THREE.MeshStandardMaterial({ color: 0xfff0a0, roughness: 0.4, metalness: 0.7 }), cape: new THREE.MeshStandardMaterial({ color: 0xb01820, roughness: 0.9 }) },
+];
+
 // Chú tiểu chibi theo ảnh tham chiếu: đầu tròn to, trán bóng, tai nhỏ, áo cổ chéo vạt,
 // tay áo rộng, đai lưng, quần ống rộng, giày xám đế kem.
 // Mặt quay về -z (hướng bàn thờ), camera nhìn từ phía sau.
-export function createMonk({ name = "", robe = ROBE_BROWN, label = true } = {}) {
+export function createMonk({ name = "", robe = ROBE_BROWN, label = true, level = 0 } = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group();
   rig.rotation.order = "YXZ";
@@ -152,11 +190,48 @@ export function createMonk({ name = "", robe = ROBE_BROWN, label = true } = {}) 
   lap.scale.set(1.3, 0.4, 1.05);
   rig.add(lap);
 
-  let tag = null;
-  if (label && name) {
-    tag = labelSprite(name);
-    root.add(tag);
+  // Áo khoác ngoài theo cấp độ (bắt buộc mặc), vẽ đè lên áo nền
+  const outer = new THREE.Group();
+  upper.add(outer);
+  let lv = 0;
+  function setLevel(n) {
+    lv = n;
+    outer.children.forEach((c) => c.geometry.dispose());
+    outer.clear();
+    const o = OUTER[n];
+    lap.material = o ? o.mat : cloth;
+    if (o) {
+      const shell = mesh(new THREE.LatheGeometry(P(o.pts), 40), o.mat);
+      shell.scale.z = 0.8;
+      outer.add(shell);
+      const hem = mesh(new THREE.TorusGeometry(o.pts[0][0], 0.028, 8, 40), o.trim, 0, o.pts[0][1], 0);
+      hem.rotation.x = Math.PI / 2;
+      hem.scale.y = 0.8;
+      outer.add(hem);
+      const neck = mesh(new THREE.TorusGeometry(0.31, 0.03, 8, 28), o.trim, 0, 1.455, 0);
+      neck.rotation.x = Math.PI / 2;
+      neck.scale.y = 0.8;
+      outer.add(neck);
+      if (o.cape) {
+        const cape = mesh(new THREE.LatheGeometry(P([[0.6, 0.98], [0.56, 1.15], [0.54, 1.3], [0.42, 1.42], [0.34, 1.455]]), 40), o.cape);
+        cape.scale.z = 0.8;
+        outer.add(cape);
+      }
+    }
+    if (label && name) {
+      if (tag) {
+        root.remove(tag);
+        tag.material.map.dispose();
+        tag.material.dispose();
+      }
+      tag = labelSprite(name, n > 0 ? LEVELS[n].name : "");
+      root.add(tag);
+      placeTag();
+    }
   }
+  const placeTag = () => tag && (tag.position.y = (state === "sitting" || state === "bowing" ? 2.7 : state === "spinning" ? 2.7 : 3.0) + (lv > 0 ? 0.12 : 0));
+
+  let tag = null;
 
   let state = "standing";
   let t = Math.random() * 10;
@@ -171,7 +246,7 @@ export function createMonk({ name = "", robe = ROBE_BROWN, label = true } = {}) 
     lap.visible = sitting;
     upper.position.y = sitting ? SIT_Y : 0;
     upper.rotation.set(0, 0, 0);
-    if (tag) tag.position.y = sitting ? 2.7 : 3.0;
+    placeTag();
     for (const a of arms) {
       // Ngồi: chắp tay trước ngực. Đứng: tay buông.
       a.pivot.rotation.set(sitting ? 1.2 : 0, 0, sitting ? -0.45 * a.s : 0.1 * a.s);
@@ -184,7 +259,7 @@ export function createMonk({ name = "", robe = ROBE_BROWN, label = true } = {}) 
       rig.rotation.x = Math.PI;
       rig.position.y = 2.42;
       for (const a of arms) a.pivot.rotation.set(0, 0, 1.3 * a.s);
-      if (tag) tag.position.y = 2.7;
+      placeTag();
     }
     if (s === "bowing") bowT = 0;
   }
@@ -223,5 +298,6 @@ export function createMonk({ name = "", robe = ROBE_BROWN, label = true } = {}) 
   }
 
   setState("standing");
-  return { group: root, setState, update, get state() { return state; } };
+  setLevel(level);
+  return { group: root, setState, setLevel, update, get state() { return state; } };
 }

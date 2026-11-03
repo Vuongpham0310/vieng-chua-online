@@ -43,3 +43,21 @@ export function activeNpcs(playerCount) {
   const stand = Math.min(NPC_STANDING.length, target - sit);
   return { mats: NPC_MATS.slice(0, sit), standing: NPC_STANDING.slice(0, Math.max(0, stand)) };
 }
+
+// Điện thoại / máy bảng cảm ứng: bật cần điều khiển, giảm độ phân giải bóng đổ
+export const isTouch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+
+// Công đức: Lễ Phật +1, đủ một vòng tràng hạt (108 hạt) +10.
+export const MERIT_BOW = 1;
+export const MERIT_BEADS_ROUND = 10;
+
+// Cấp độ theo công đức. Mỗi cấp được ban áo khoác ngoài và chỗ ngồi riêng, bắt buộc dùng từ đó.
+export const LEVELS = [
+  { name: "Phật tử", min: 0, coat: "Chưa có áo ngoài", seat: "Thảm cói" },
+  { name: "Sa di", min: 100, coat: "Áo tràng xám", seat: "Đệm xám" },
+  { name: "Tỳ kheo", min: 500, coat: "Cà sa nâu", seat: "Bồ đoàn nâu" },
+  { name: "Đại đức", min: 1500, coat: "Cà sa vàng nghệ", seat: "Bồ đoàn vàng" },
+  { name: "Thượng tọa", min: 5000, coat: "Cà sa đỏ đô", seat: "Tòa sen hồng" },
+  { name: "Hòa thượng", min: 15000, coat: "Cà sa vàng kim", seat: "Tòa sen vàng" },
+];
+export const levelOf = (merit) => LEVELS.reduce((lv, l, i) => (merit >= l.min ? i : lv), 0);

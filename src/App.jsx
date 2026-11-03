@@ -7,6 +7,7 @@ import Hud from "./ui/Hud.jsx";
 import Panels from "./ui/Panels.jsx";
 import { Welcome, Idle } from "./ui/Screens.jsx";
 import { useStore } from "./store.js";
+import { isTouch } from "./shared.js";
 
 export default function App() {
   const phase = useStore((s) => s.phase);
@@ -31,7 +32,7 @@ export default function App() {
     <>
       <Canvas
         className="view"
-        dpr={[1, 2]}
+        dpr={isTouch ? [1, 1.5] : [1, 2]}
         shadows={{ type: THREE.PCFSoftShadowMap }}
         camera={{ fov: 62, near: 0.1, far: 700, position: [0, 4.2, 22] }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}

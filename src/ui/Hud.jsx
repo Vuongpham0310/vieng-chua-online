@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { store, useStore } from "../store.js";
 import { setVolume, setMuted, isMuted, getVolume } from "../audio.js";
+import Joystick from "./Joystick.jsx";
+import { isTouch, LEVELS } from "../shared.js";
 import { Sit, Bow, Mo, Beads, Stand, Spin, Users, Gear, Monk, Close } from "./Icons.jsx";
 
 function Timer() {
@@ -30,6 +32,7 @@ function Popup() {
   const popup = useStore((s) => s.popup);
   const players = useStore((s) => s.players);
   const npc = useStore((s) => s.npcCount);
+  const level = useStore((s) => s.level);
   const [vol, setVol] = useState(getVolume());
   const [mute, setMute] = useState(isMuted());
   if (!popup) return null;
@@ -38,6 +41,22 @@ function Popup() {
       <Close />
     </button>
   );
+  if (popup === "levels")
+    return (
+      <aside className="card popup levels" aria-label="Cấp độ">
+        {closeBtn}
+        <h3>Cấp độ công đức</h3>
+        <p className="rules">Lễ Phật +1 · Đủ một vòng 108 hạt +10</p>
+        <ol>
+          {LEVELS.map((l, i) => (
+            <li key={l.name} className={i === level ? "now" : i < level ? "done" : ""}>
+              <b>{l.name}</b> <span className="tnum">{l.min.toLocaleString("vi-VN")} công đức</span>
+              <small>{i === 0 ? l.seat : l.coat + " · " + l.seat}</small>
+            </li>
+          ))}
+        </ol>
+      </aside>
+    );
   if (popup === "players")
     return (
       <aside className="card popup" aria-label="Người trong chùa">
@@ -90,8 +109,14 @@ export default function Hud() {
   const canSit = useStore((s) => s.canSit);
   const nearMat = useStore((s) => s.nearMat);
   const toast = useStore((s) => s.toast);
+  const toastKind = useStore((s) => s.toastKind);
+  const merit = useStore((s) => s.merit);
+  const level = useStore((s) => s.level);
+  const gain = useStore((s) => s.gain);
   const popup = useStore((s) => s.popup);
   const sitting = mode === "sitting" || mode === "bowing";
+  const next = LEVELS[level + 1];
+  const pct = next ? (merit - LEVELS[level].min) / (next.min - LEVELS[level].min) : 1;
   const act = store.actions;
 
   let sub = <span>Đang đứng</span>;
@@ -108,17 +133,29 @@ export default function Hud() {
 
   return (
     <div className="hud">
-      <div className="profile">
+      <button className="profile" aria-pressed={popup === "levels"} onClick={() => store.set({ popup: popup === "levels" ? null : "levels" })} aria-label="Xem cấp độ công đức">
         <div className="avatar">
           <Monk size={30} />
         </div>
-        <div>
+        <div className="pinfo">
           <div className="pname">{name}</div>
           <div className="psub" aria-live="polite">
             {sub}
           </div>
+          <div className="plv">
+            <span>{LEVELS[level].name}</span>
+            <span className="tnum">{merit.toLocaleString("vi-VN")}</span>
+          </div>
+          <div className="bar" role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ lên cấp">
+            <i style={{ width: pct * 100 + "%" }} />
+          </div>
         </div>
-      </div>
+        {gain && (
+          <span className="gain" key={gain.key} aria-hidden="true">
+            +{gain.n} công đức
+          </span>
+        )}
+      </button>
 
       <nav className="top-right" aria-label="Menu">
         <button className="pill" aria-pressed={popup === "players"} onClick={() => store.set({ popup: popup === "players" ? null : "players" })}>
@@ -137,12 +174,15 @@ export default function Hud() {
         <span>Khi ngồi: <kbd>Q</kbd> lễ Phật · <kbd>W</kbd> gõ mõ · <kbd>E</kbd> tràng hạt</span>
       </div>
 
+      {isTouch && !sitting && mode !== "bowing" && <Joystick />}
+
+      {!sitting && (
+        <p className={"guide" + (nearMat >= 0 && !canSit ? " warn" : "")} role="status">
+          {guide}
+        </p>
+      )}
+
       <div className="dock">
-        {!sitting && (
-          <p className={"guide" + (nearMat >= 0 && !canSit ? " warn" : "")} role="status">
-            {guide}
-          </p>
-        )}
         <div className="acts">
           {!sitting && <Action icon={<Spin size={30} />} label={mode === "spinning" ? "Dừng xoay" : "Xoay đầu"} kbd="Q" onClick={act.spin} />}
           {!sitting && <Action icon={<Sit size={30} />} label="Ngồi thiền" kbd="Space" wide onClick={act.sit} disabled={!canSit} hint={nearMat >= 0 && !canSit ? "Thảm này đã có người ngồi" : undefined} />}
@@ -154,7 +194,7 @@ export default function Hud() {
       </div>
 
       {toast && (
-        <div className="toast" role="status">
+        <div className={"toast " + toastKind} role="status">
           {toast}
         </div>
       )}

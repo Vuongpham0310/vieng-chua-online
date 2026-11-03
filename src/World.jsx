@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { MAT_COUNT, matPos } from "./shared.js";
+import { MAT_COUNT, isTouch, matPos } from "./shared.js";
 import { std, canvasTex, mergeStatic } from "./three/util3d.js";
 import { buildHall } from "./three/hall.js";
 import { buildAltar } from "./three/altar.js";
@@ -143,7 +143,7 @@ export default function World() {
         intensity={1.9}
         position={[-40, 75, 40]}
         castShadow
-        shadow-mapSize={[3072, 3072]}
+        shadow-mapSize={isTouch ? [1536, 1536] : [3072, 3072]}
         shadow-camera-left={-58}
         shadow-camera-right={58}
         shadow-camera-top={58}

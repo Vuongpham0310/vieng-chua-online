@@ -117,7 +117,7 @@ function swastikaTex() {
   });
 }
 
-function lotusTier(parent, mat, n, radius, y, size, tilt, phase = 0) {
+export function lotusTier(parent, mat, n, radius, y, size, tilt, phase = 0) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + phase;
     const g = new THREE.Group();

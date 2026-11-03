@@ -3,7 +3,6 @@ import { std, gold, canvasTex, mk, glowPlane, markCast } from "./util3d.js";
 import { HALL } from "../shared.js";
 
 const WOOD = 0x603424; // cột gỗ tròn, sơn bóng nhẹ
-const WALL = 0x563727; // vách gỗ mờ, có vân
 const BEAM = 0x39251d; // xà ngang gỗ sẫm
 const CARVE = 0xb88342; // hoa văn chạm khắc, vàng đồng cổ
 const EDGE = 0x291a17; // viền trang trí, nâu gần đen

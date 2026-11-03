@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { createMonk, pickRobe, ROBE_BROWN, ROBE_BLUE } from "./three/monk.js";
 import { shadowify } from "./three/util3d.js";
+import { buildSeat } from "./three/seat.js";
 import { initAudio, startChant, stopChant } from "./audio.js";
-import { MAT_COUNT, FIXED_MAT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
+import { LEVELS, MERIT_BOW, levelOf, MAT_COUNT, FIXED_MAT, MASTER_POS, ROOM, SPAWN_Z, activeNpcs, matPos } from "./shared.js";
 import { store } from "./store.js";
 
 const IDLE_MS = 5 * 60 * 1000; // ẩn tab quá 5 phút thì ngừng gửi
@@ -26,7 +27,7 @@ export function createController(scene) {
   let serverOffset = 0;
   const serverNow = () => Date.now() + serverOffset;
   const robeOf = (c) => (c === "blue" ? ROBE_BLUE : ROBE_BROWN);
-  const me = { name: "Phật tử", robe: "brown", x: 0, z: SPAWN_Z, state: "standing", mat: null, monk: null };
+  const me = { name: "Phật tử", robe: "brown", lv: 0, seatY: 0, x: 0, z: SPAWN_Z, state: "standing", mat: null, monk: null };
   let inGame = false;
   let idle = false;
   let npcList = activeNpcs(1).mats;
@@ -38,10 +39,31 @@ export function createController(scene) {
   let toastTimer = 0;
   let nearMat = -1;
   const keys = new Set();
+  const joy = { x: 0, z: 0 }; // cần điều khiển cảm ứng, mỗi trục -1..1
   let disposed = false;
+  let merit = 0;
+
+  // Chỗ ngồi theo cấp độ: gắn trên thảm khi ngồi, bỏ khi đứng dậy. Trả về độ cao nâng người.
+  const seats = new Map();
+  function setSeat(key, mat, lv) {
+    const cur = seats.get(key);
+    if (cur && cur.mat === mat && cur.lv === lv) return cur.h;
+    if (cur) {
+      scene.remove(cur.group);
+      seats.delete(key);
+    }
+    if (mat == null || lv < 1) return 0;
+    const s = buildSeat(lv);
+    const p = matPos(mat);
+    s.group.position.set(p.x, 0, p.z);
+    scene.add(s.group);
+    shadowify(s.group);
+    seats.set(key, { ...s, mat, lv });
+    return s.h;
+  }
 
   // Sư thầy ở phía trước hàng thảm đầu
-  const master = createMonk({ name: "Sư thầy", robe: ROBE_BROWN });
+  const master = createMonk({ name: "Sư thầy", robe: ROBE_BROWN, level: 5 });
   master.group.position.set(MASTER_POS.x, 0, MASTER_POS.z);
   master.setState("sitting");
   scene.add(master.group);
@@ -53,9 +75,10 @@ export function createController(scene) {
   scene.add(moBox);
 
   // NPC cố định có tên: không bao giờ bị bớt đi dù có bao nhiêu người chơi
-  const yenNhi = createMonk({ name: "Thích Yến Nhi", robe: pickRobe("yennhi") });
+  const yenNhi = createMonk({ name: "Thích Yến Nhi", robe: pickRobe("yennhi"), level: 4 });
   yenNhi.group.position.set(matPos(FIXED_MAT).x, 0, matPos(FIXED_MAT).z);
   yenNhi.setState("sitting");
+  yenNhi.group.position.y = setSeat("yn", FIXED_MAT, 4);
   scene.add(yenNhi.group);
   shadowify(yenNhi.group);
 
@@ -88,7 +111,7 @@ export function createController(scene) {
 
   function push() {
     if (!inGame || idle) return;
-    send({ id, name: me.name, robe: me.robe, x: me.x, z: me.z, state: me.state, mat: me.mat }).then(onResponse);
+    send({ id, name: me.name, robe: me.robe, lv: me.lv, x: me.x, z: me.z, state: me.state, mat: me.mat }).then(onResponse);
   }
 
   function onResponse(r) {
@@ -102,7 +125,10 @@ export function createController(scene) {
     syncNpcs();
     syncStanding(r.count ?? 1);
     applyOthers(r.players || []);
-    store.set({ players: [me.name + " (bạn)", ...[...others.values()].map((o) => o.name)], npcCount: npcList.length + standers.size + 1 });
+    const players = [me.name + " (bạn)", ...[...others.values()].map((o) => o.name)];
+    const npcCount = npcList.length + standers.size + 1;
+    const st = store.get();
+    if (npcCount !== st.npcCount || players.join("|") !== st.players.join("|")) store.set({ players, npcCount });
   }
 
   function applyOthers(list) {
@@ -111,23 +137,31 @@ export function createController(scene) {
       seen.add(p.id);
       let o = others.get(p.id);
       if (!o) {
-        const monk = createMonk({ name: p.name, robe: robeOf(p.robe) });
+        const monk = createMonk({ name: p.name, robe: robeOf(p.robe), level: p.lv | 0 });
         monk.group.position.set(p.x, 0, p.z);
         add(monk);
-        o = { monk, tx: p.x, tz: p.z, state: "standing", mat: null, name: p.name };
+        o = { monk, tx: p.x, tz: p.z, state: "standing", mat: null, name: p.name, lv: p.lv | 0, seatY: 0, miss: 0 };
         others.set(p.id, o);
       }
       o.tx = p.x;
       o.tz = p.z;
       o.mat = p.mat;
       o.name = p.name;
+      if (o.lv !== (p.lv | 0)) {
+        o.lv = p.lv | 0;
+        o.monk.setLevel(o.lv);
+      }
       if (o.state !== p.state) {
         o.state = p.state;
         o.monk.setState(p.state);
       }
+      o.seatY = setSeat(p.id, p.state === "sitting" || p.state === "bowing" ? p.mat : null, o.lv);
     }
     for (const [pid, o] of others) {
-      if (!seen.has(pid)) {
+      if (seen.has(pid)) o.miss = 0;
+      // Server ghi đè cả danh sách nên đôi khi một người vắng mặt 1 lượt: chờ 3 lượt mới coi là đã rời
+      else if (++o.miss >= 3) {
+        setSeat(pid, null, 0);
         scene.remove(o.monk.group);
         others.delete(pid);
       }
@@ -189,15 +223,16 @@ export function createController(scene) {
   }
 
   // ---------- Hành động ----------
-  function toast(msg) {
-    store.set({ toast: msg });
+  function toast(msg, kind = "warn") {
+    store.set({ toast: msg, toastKind: kind });
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => store.set({ toast: "" }), 3000);
+    toastTimer = setTimeout(() => store.set({ toast: "" }), kind === "good" ? 6000 : 3000);
   }
 
   function setMode(s) {
     me.state = s;
     me.monk.setState(s);
+    me.seatY = setSeat("me", s === "sitting" || s === "bowing" ? me.mat : null, me.lv);
     store.set({ mode: s });
   }
 
@@ -220,6 +255,25 @@ export function createController(scene) {
     if (announce) push();
   }
 
+  // Công đức lưu trong trình duyệt; lên cấp thì đổi áo khoác và chỗ ngồi ngay.
+  function addMerit(n) {
+    const before = me.lv;
+    merit += n;
+    try {
+      localStorage.setItem("vc_merit", String(merit));
+    } catch {
+      /* bỏ qua */
+    }
+    me.lv = levelOf(merit);
+    store.set({ merit, level: me.lv, gain: { n, key: Date.now() } });
+    if (me.lv !== before) {
+      me.monk.setLevel(me.lv);
+      me.seatY = setSeat("me", me.state === "sitting" || me.state === "bowing" ? me.mat : null, me.lv);
+      toast("Chúc mừng! Bạn đạt cấp " + LEVELS[me.lv].name + ": được ban " + LEVELS[me.lv].coat + " và " + LEVELS[me.lv].seat, "good");
+      push();
+    }
+  }
+
   function bow() {
     if (me.state !== "sitting") return;
     setMode("bowing");
@@ -227,6 +281,7 @@ export function createController(scene) {
     setTimeout(() => {
       if (me.state === "bowing") {
         setMode("sitting");
+        addMerit(MERIT_BOW);
         push();
       }
     }, 2600);
@@ -301,12 +356,18 @@ export function createController(scene) {
     } catch {
       /* bỏ qua */
     }
-    me.monk = createMonk({ name: me.name, robe: robeOf(me.robe) });
+    try {
+      merit = Number(localStorage.getItem("vc_merit")) || 0;
+    } catch {
+      merit = 0;
+    }
+    me.lv = levelOf(merit);
+    me.monk = createMonk({ name: me.name, robe: robeOf(me.robe), level: me.lv });
     me.x = (Math.random() - 0.5) * 24;
     me.z = SPAWN_Z;
     add(me.monk);
     inGame = true;
-    store.set({ phase: "game", name: me.name, players: [me.name + " (bạn)"] });
+    store.set({ phase: "game", merit, level: me.lv, name: me.name, players: [me.name + " (bạn)"] });
     initAudio(serverNow);
     startChant();
     syncNpcs();
@@ -323,6 +384,12 @@ export function createController(scene) {
   let camReady = false;
 
   function frame(dt, camera) {
+    // màn hình dọc: mở rộng góc nhìn để thấy đủ ngang
+    const fov = camera.aspect < 1 ? 78 : 62;
+    if (camera.fov !== fov) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
     master.update(dt, false);
     yenNhi.update(dt, false);
     for (const m of npcs.values()) m.update(dt, false);
@@ -332,16 +399,17 @@ export function createController(scene) {
       const st = store.get();
       let moving = false;
       if (me.state === "standing" && !st.panel) {
-        const dx = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
-        const dz = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
-        if (dx || dz) {
-          const len = Math.hypot(dx, dz);
-          me.x = Math.max(-ROOM.halfW, Math.min(ROOM.halfW, me.x + (dx / len) * SPEED * dt));
-          me.z = Math.max(ROOM.zMin, Math.min(ROOM.zMax, me.z + (dz / len) * SPEED * dt));
+        const dx = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0) + joy.x;
+        const dz = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0) + joy.z;
+        const len = Math.hypot(dx, dz);
+        if (len > 0.1) {
+          const k = Math.min(len, 1) / len;
+          me.x = Math.max(-ROOM.halfW, Math.min(ROOM.halfW, me.x + dx * k * SPEED * dt));
+          me.z = Math.max(ROOM.zMin, Math.min(ROOM.zMax, me.z + dz * k * SPEED * dt));
           moving = true;
         }
       }
-      me.monk.group.position.set(me.x, 0, me.z);
+      me.monk.group.position.set(me.x, me.seatY, me.z);
       me.monk.update(dt, moving);
 
       // Thảm gần nhất
@@ -370,19 +438,19 @@ export function createController(scene) {
         const g = o.monk.group.position;
         const k = Math.min(1, dt * 7);
         const mv = Math.hypot(o.tx - g.x, o.tz - g.z) > 0.08;
-        g.set(g.x + (o.tx - g.x) * k, 0, g.z + (o.tz - g.z) * k);
+        g.set(g.x + (o.tx - g.x) * k, o.seatY, g.z + (o.tz - g.z) * k);
         o.monk.update(dt, mv);
       }
 
       // Camera đi theo nhân vật, luôn nhìn về bàn thờ (không xoay)
-      camTarget.set(me.x * 0.9, 4.4, me.z + 10.8);
+      camTarget.set(me.x * 0.9, 5.0, me.z + 10.8);
       if (!camReady) {
         camPos.copy(camTarget);
         camReady = true;
       }
       camPos.lerp(camTarget, Math.min(1, dt * 6));
       camera.position.copy(camPos);
-      camera.lookAt(camPos.x, camPos.y + 3.2, camPos.z - 30);
+      camera.lookAt(camPos.x, camPos.y - 1.4, camPos.z - 30);
     } else if (!inGame) {
       camera.position.set(0, 4.2, 22);
       camera.lookAt(0, 10.5, -30);
@@ -399,6 +467,15 @@ export function createController(scene) {
     bowTimer = setTimeout(npcBowLoop, 8000);
     Object.assign(store.actions, {
       enter,
+      addMerit,
+      joy: (x, z) => {
+        joy.x = x;
+        joy.z = z;
+        if (Math.hypot(x, z) > 0.2 && me.state === "spinning") {
+          setMode("standing");
+          push();
+        }
+      },
       sit: sitDown,
       stand: () => standUp(),
       bow,

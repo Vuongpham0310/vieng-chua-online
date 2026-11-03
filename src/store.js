@@ -13,6 +13,10 @@ let state = {
   panel: null, // null | "mo" | "beads"
   popup: null, // null | "players" | "settings"
   toast: "",
+  toastKind: "warn",
+  merit: 0,
+  level: 0,
+  gain: null, // { n, key } công đức vừa nhận
 };
 const listeners = new Set();
 

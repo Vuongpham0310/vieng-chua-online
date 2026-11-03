@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { MAT_COUNT, FIXED_MAT, activeNpcs } from "../../src/shared.js";
+import { MAT_COUNT, FIXED_MAT, LEVELS, activeNpcs } from "../../src/shared.js";
 
 const TTL = 15000;
 
@@ -48,6 +48,7 @@ export default async (req) => {
         x: Number(body.x) || 0,
         z: Number(body.z) || 0,
         robe: body.robe === "blue" ? "blue" : "brown",
+        lv: Math.max(0, Math.min(LEVELS.length - 1, Number(body.lv) | 0)),
         state,
         mat,
         t: now,
@@ -58,7 +59,7 @@ export default async (req) => {
 
   const others = Object.entries(players)
     .filter(([pid]) => pid !== id)
-    .map(([pid, p]) => ({ id: pid, name: p.name, robe: p.robe, x: p.x, z: p.z, state: p.state, mat: p.mat }));
+    .map(([pid, p]) => ({ id: pid, name: p.name, robe: p.robe, lv: p.lv, x: p.x, z: p.z, state: p.state, mat: p.mat }));
 
   const count = Object.keys(players).length;
   return Response.json({ now, rejected, npc: activeNpcs(count).mats, count, players: others });
