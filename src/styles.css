@@ -167,8 +167,8 @@ html, body { overscroll-behavior: none; touch-action: none; }
   .act { width: 66px; height: 66px; font-size: 9.5px; letter-spacing: -0.01em; gap: 1px; }
   .act-ic svg { width: 24px; height: 24px; }
   .act-lb { white-space: nowrap; }
-  .dock { left: auto; right: var(--s3); bottom: var(--s3); transform: none; align-items: flex-end; }
-  .acts { justify-content: flex-end; }
+  .dock { left: auto; right: var(--s3); bottom: 68px; transform: none; align-items: flex-end; } /* chừa chỗ cho nhãn "Powered by Netlify" */
+  .acts { flex-direction: column; align-items: flex-end; flex-wrap: nowrap; }
   .profile { top: var(--s3); left: var(--s3); padding-right: var(--s4); }
   .top-right { top: var(--s3); right: var(--s3); }
   .pinfo { min-width: 120px; }
